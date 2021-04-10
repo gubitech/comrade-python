@@ -2,14 +2,12 @@ import datetime
 import string
 import secrets
 
-import discord
-
-from discord.ext.commands import Bot, Cog
+from discord.ext.commands import Cog
 from discord_slash import cog_ext, SlashContext
 from discord_slash.model import SlashCommandOptionType as OptionType
 from discord_slash.utils.manage_commands import create_option
 from sqlalchemy import Table, Column, Integer, String, DateTime, sql
-from sqlalchemy.exc import NoResultFound
+
 
 from comrade import db
 
@@ -77,7 +75,3 @@ class DKP(Cog):
             ),
             hidden=True,
         )
-
-
-def setup(bot: Bot):
-    bot.add_cog(DKP(bot))
