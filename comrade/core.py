@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from comrade import db
 
 
+EXTENSIONS = [".core", ".dkp"]
+
+
 @attr.s(slots=True, auto_attribs=True)
 class Listener:
 
@@ -35,7 +38,6 @@ class Config:
 
     token: str
     database: str
-    extensions: typing.List[str] = attr.ib(factory=list)
     rpc: RPC = attr.ib(factory=RPC)
 
 
@@ -64,7 +66,7 @@ class Bot(_Bot):
             else:
                 self.rpc.add_insecure_port(listener.bind)
 
-        for ext in self._config.extensions:
+        for ext in EXTENSIONS:
             self.load_extension(ext, package="comrade.plugins")
 
     def add_rpc(self, servicer, name, register_cb):
@@ -72,7 +74,7 @@ class Bot(_Bot):
         register_cb(servicer, self.rpc)
 
     def reload(self):
-        for ext in self._config.extensions:
+        for ext in EXTENSIONS:
             self.reload_extension(ext, package="comrade.plugins")
 
     def register_sighup(self):
