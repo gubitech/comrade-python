@@ -15,11 +15,28 @@ from comrade import db
 
 
 @attr.s(slots=True, auto_attribs=True)
+class Listener:
+
+    bind: str
+    tls_certificate: typing.Optional[str] = None
+    tls_certificate_key: typing.Optional[str] = None
+    tls_trusted_certificates: typing.Optional[str] = None
+    require_client_auth: bool = False
+
+
+@attr.s(slots=True, auto_attribs=True)
+class RPC:
+
+    listeners: typing.List[Listener] = attr.ib(factory=list)
+
+
+@attr.s(slots=True, auto_attribs=True)
 class Config:
 
     token: str
     database: str
     extensions: typing.List[str] = attr.ib(factory=list)
+    rpc: RPC = attr.ib(factory=RPC)
 
 
 class Bot(_Bot):
@@ -34,8 +51,18 @@ class Bot(_Bot):
         self.db = create_async_engine(self._config.database, echo=True)
 
         self.rpc = grpc.aio.server()
-        self.rpc.add_insecure_port("[::]:50051")
         self._rpc_services = []
+
+        for listener in self._config.rpc.listeners:
+            if all([listener.tls_certificate, listener.tls_certificate_key]):
+                grpc.ssl_server_credentials(
+                    [(listener.tls_certificate_key, listener.tls_certificate)],
+                    root_certificates=listener.tls_trusted_certificates,
+                    require_client_auth=listener.require_client_auth,
+                )
+                self.rpc.add_secure_port(listener.bind, None)
+            else:
+                self.rpc.add_insecure_port(listener.bind)
 
         for ext in self._config.extensions:
             self.load_extension(ext, package="comrade.plugins")
