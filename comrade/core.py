@@ -34,10 +34,19 @@ class RPC:
 
 
 @attr.s(slots=True, auto_attribs=True)
+class DKP:
+
+    url: str
+    database: str
+    dkp_pool_id: int
+
+
+@attr.s(slots=True, auto_attribs=True)
 class Config:
 
     token: str
     database: str
+    dkp: DKP
     rpc: RPC = attr.ib(factory=RPC)
 
 
@@ -48,14 +57,14 @@ class Bot(_Bot):
         self._slash = SlashCommand(self, sync_commands=True)
 
         with open(config_file) as fp:
-            self._config: Config = cattr.structure(toml.load(fp), Config)
+            self.config: Config = cattr.structure(toml.load(fp), Config)
 
-        self.db = create_async_engine(self._config.database, echo=True)
+        self.db = create_async_engine(self.config.database, echo=True)
 
         self.rpc = grpc.aio.server()
         self._rpc_services = []
 
-        for listener in self._config.rpc.listeners:
+        for listener in self.config.rpc.listeners:
             if all([listener.tls_certificate, listener.tls_certificate_key]):
                 grpc.ssl_server_credentials(
                     [(listener.tls_certificate_key, listener.tls_certificate)],
@@ -89,7 +98,7 @@ class Bot(_Bot):
         reflection.enable_server_reflection(self._rpc_services, self.rpc)
 
         if token is None:
-            token = self._config.token
+            token = self.config.token
 
         return super().run(token, *args, **kwargs)
 

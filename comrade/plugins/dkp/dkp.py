@@ -10,6 +10,7 @@ from sqlalchemy import Table, Column, Integer, String, DateTime, sql
 
 
 from comrade import db
+from comrade.plugins.dkp.provider import DKPProvider
 
 
 pending_claims = Table(
@@ -48,6 +49,72 @@ linked_characters = Table(
 class DKP(Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.provider = DKPProvider(self.bot.config.dkp)
+
+    @cog_ext.cog_subcommand(
+        base="dkp",
+        name="check",
+        description="Check someone's current DKP",
+        options=[
+            create_option(
+                name="user",
+                description="which discord user's dkp to check if other than own",
+                option_type=OptionType.USER,
+                required=False,
+            ),
+        ],
+    )
+    async def _dkp_check(self, ctx: SlashContext, user=None):
+        # We have to defer the response, because fetching resutls might take > 3s and then
+        # our interaction will expire.
+        await ctx.defer(hidden=True)
+
+        # If we weren't given a user, then we're using the current user.
+        if user is None:
+            user = ctx.author
+
+        # We need to look up the main for this discord user
+        async with self.bot.db.begin() as tx:
+            linked = (
+                await tx.execute(
+                    sql.select(linked_characters).where(
+                        linked_characters.c.discord_user == user.id
+                    )
+                )
+            ).first()
+
+        # If the given user does not have a linked character, then we can't look up
+        # their DKP, and we should bail out with an error.
+        if linked is None:
+            await ctx.send(
+                content=f"***Error:*** {user.mention} does not have a linked character.",
+                hidden=True,
+            )
+            return
+
+        # We have a character name now, so we'll look up their DKP using our DKP Provider.
+        dkp = await self.provider.current_dkp(linked._mapping["character"])
+        if dkp is None:
+            # If we weren't able to locate a character in the DKP system, then that's also
+            # an error we need to bail out with.
+            await ctx.send(
+                content=(
+                    f"***Error:*** {linked._mapping['character'].title()} does not appear in "
+                    f"the DKP system, have they ever earned any DKP?"
+                ),
+                hidden=True,
+            )
+            return
+
+        # Finally, we actually have the data to return the actual results.
+        # Embed's cannot currently be hidden, but they intended to allow them, once
+        # they do, we can switch to using something like this for embeds.
+        # embed = discord.Embed(title="DKP Stats", description="Foobar", color=0x00FF00)
+        # embed.add_field(name="DKP", value="17")
+        await ctx.send(
+            content=f"**{dkp.name.title()} ({user.mention})**:\n\nCurrent: {dkp.current}",
+            hidden=True,
+        )
 
     @cog_ext.cog_subcommand(
         base="dkp",
