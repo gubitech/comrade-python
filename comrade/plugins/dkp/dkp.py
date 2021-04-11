@@ -29,6 +29,22 @@ pending_claims = Table(
 )
 
 
+linked_characters = Table(
+    "linked_characters",
+    db.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("claimed_on", DateTime, nullable=False, default=datetime.datetime.utcnow),
+    Column(
+        "discord_user",
+        Integer,
+        nullable=False,
+        unique=True,
+    ),
+    Column("character", String(100), nullable=False, unique=True),
+    extend_existing=True,
+)
+
+
 class DKP(Cog):
     def __init__(self, bot):
         self.bot = bot
