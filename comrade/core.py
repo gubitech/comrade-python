@@ -42,11 +42,25 @@ class DKP:
 
 
 @attr.s(slots=True, auto_attribs=True)
-class Config:
+class Discord:
 
     token: str
+    server_id: int
+
+
+@attr.s(slots=True, auto_attribs=True)
+class Auction:
+
+    channels: list[str] = attr.ib(factory=list)
+
+
+@attr.s(slots=True, auto_attribs=True)
+class Config:
+
     database: str
+    discord: Discord
     dkp: DKP
+    auction: Auction
     rpc: RPC = attr.ib(factory=RPC)
 
 
@@ -98,7 +112,7 @@ class Bot(_Bot):
         reflection.enable_server_reflection(self._rpc_services, self.rpc)
 
         if token is None:
-            token = self.config.token
+            token = self.config.discord.token
 
         return super().run(token, *args, **kwargs)
 

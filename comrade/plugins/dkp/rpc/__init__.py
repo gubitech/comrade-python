@@ -1,11 +1,41 @@
 import hmac
+import logging
 
 from sqlalchemy import sql
 
 from comrade.plugins.dkp.dkp import pending_claims, linked_characters
 
+from . import auction_pb2_grpc, auction_pb2
 from . import dkp_pb2_grpc, dkp_pb2
-from .dkp_pb2 import LinkCharacterResponse
+
+
+logger = logging.getLogger(__name__)
+
+
+class Auction(auction_pb2_grpc.AuctionServicer):
+    def __init__(self, bot, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.bot = bot
+
+    async def AddItem(self, request, context):
+        auction = self.bot.get_cog("Auction")
+        if auction is None:
+            logger.warn(f"No auction cog found, discarding item: ")
+        else:
+            await auction.add_auction_item(
+                request.item, request.quantity, request.added_by
+            )
+
+        return auction_pb2.AddItemResponse()
+
+
+def AuctionService(*args, **kwargs):
+    return (
+        Auction(*args, **kwargs),
+        auction_pb2.DESCRIPTOR.services_by_name["Auction"].full_name,
+        auction_pb2_grpc.add_AuctionServicer_to_server,
+    )
 
 
 class DKP(dkp_pb2_grpc.DKPServicer):
@@ -55,7 +85,7 @@ class DKP(dkp_pb2_grpc.DKPServicer):
                         )
                     )
 
-        return LinkCharacterResponse()
+        return dkp_pb2.LinkCharacterResponse()
 
 
 def DKPService(*args, **kwargs):
