@@ -259,7 +259,7 @@ def check_auction_channels(fn):
                 hidden=True,
             )
         else:
-            yield from fn(channel, *args, **kwargs)
+            yield from fn(self, channel, *args, **kwargs)
 
     return wrapper
 
@@ -275,7 +275,7 @@ def check_auction_status(statuses):
                         message=message,
                         hidden=True,
                     )
-            yield from fn(channel, *args, **kwargs)
+            yield from fn(self, channel, *args, **kwargs)
 
         return wrapper
 
