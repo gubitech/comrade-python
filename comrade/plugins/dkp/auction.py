@@ -4,6 +4,7 @@ import itertools
 import logging
 import random
 import typing
+import functools
 
 from collections.abc import Iterable
 
@@ -237,6 +238,50 @@ def determine_results(auction: RunningAuction) -> AuctionResults:
     return AuctionResults(winners=winners, tied=tied, rolled=rolled)
 
 
+def check_auction_channels(fn):
+    @functools.wraps(fn)
+    def wrapper(self, channel, *args, **kwargs):
+        # Check if our bid is coming in on a channel that is one of our auction
+        # channels. We can't scope the bid command to certain channels, so it could
+        # happen on any of them.
+        if channel not in self._channels:
+            yield AuctionMessage(
+                channel=channel,
+                message="This isn't an auction channel. Try Again.",
+                hidden=True,
+            )
+        # Likewise, even if it is one of our channels, there might not be an active
+        # auction happening in that channel.
+        elif self._channels[channel] is None:
+            yield AuctionMessage(
+                channel=channel,
+                message="There isn't an active auction in this channel.",
+                hidden=True,
+            )
+        else:
+            yield from fn(channel, *args, **kwargs)
+
+    return wrapper
+
+
+def check_auction_status(statuses):
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(self, channel, *args, **kwargs):
+            for status, message in statuses.items():
+                if self._channels[channel].status is status:
+                    yield AuctionMessage(
+                        channel=channel,
+                        message=message,
+                        hidden=True,
+                    )
+            yield from fn(channel, *args, **kwargs)
+
+        return wrapper
+
+    return deco
+
+
 class Auctioneer:
     def __init__(self, *args, channels, **kwargs):
         super().__init__(*args, *kwargs)
@@ -283,52 +328,22 @@ class Auctioneer:
                     ),
                 )
 
+    @check_auction_channels
+    @check_auction_status(
+        {
+            Status.Finished: (
+                "This auction has already closed and is waiting on and officer "
+                "to accept the results."
+            ),
+            Status.Stopped: (
+                "This auction has been stopped and is not accepting bids at the "
+                "moment."
+            ),
+        }
+    )
     def bid(self, channel, bidder, bid_amount) -> Iterable[AuctionMessage]:
-        # Check if our bid is coming in on a channel that is one of our auction
-        # channels. We can't scope the bid command to certain channels, so it could
-        # happen on any of them.
-        if channel not in self._channels:
-            yield AuctionMessage(
-                channel=channel,
-                message="This isn't an auction channel. Try Again.",
-                hidden=True,
-            )
-            return
-
         # Grab the item that is currently being bid in our channel.
-        auction = self._channels[channel]
-
-        # Likewise, even if it is one of our channels, there might not be an active
-        # auction happening in that channel.
-        if auction is None:
-            yield AuctionMessage(
-                channel=channel,
-                message="There isn't an active auction in this channel.",
-                hidden=True,
-            )
-            return
-
-        # Check to see if the auction is in a state that is actually allowing bids.
-        if auction.status is Status.Finished:
-            yield AuctionMessage(
-                channel=channel,
-                message=(
-                    "This auction has already closed and is waiting on an "
-                    "officer to accept the results."
-                ),
-                hidden=True,
-            )
-            return
-        elif auction.status is Status.Stopped:
-            yield AuctionMessage(
-                channel=channel,
-                message=(
-                    "This auction has been stopped and is not accepting "
-                    "bids at the moment."
-                ),
-                hidden=True,
-            )
-            return
+        auction = typing.cast(RunningAuction, self._channels[channel])
 
         # TODO: Check if the bid is actually valid (has the DKP, etc)
         # TODO: Implement Recruit/Member/Alt Bidding.
@@ -342,36 +357,16 @@ class Auctioneer:
         yield AuctionMessage(channel=channel, message="Bid Accepted!", hidden=True)
         yield AuctionMessage(channel=channel, message=f"{bid.bidder} has bid {bid.bid}")
 
+    @check_auction_channels
+    @check_auction_status(
+        {
+            Status.Running: "This auction has not finished and cannot be accepted yet.",
+            Status.Stopped: "This auction has not finished and cannot be accepted yet.",
+        }
+    )
     def accept(self, channel, force=False) -> Iterable[AuctionMessage]:
-        if channel not in self._channels:
-            yield AuctionMessage(
-                channel=channel,
-                message="This isn't an auction channel. Try Again.",
-                hidden=True,
-            )
-            return
-
         # Grab the item that is currently being bid in our channel.
-        auction = self._channels[channel]
-
-        # Likewise, even if it is one of our channels, there might not be an active
-        # auction happening in that channel.
-        if auction is None:
-            yield AuctionMessage(
-                channel=channel,
-                message="There isn't an active auction in this channel.",
-                hidden=True,
-            )
-            return
-
-        # Check to make sure that the auction we do have, is in the finished state.
-        if auction.status is not Status.Finished:
-            yield AuctionMessage(
-                channel=channel,
-                message="This auction has not finished and cannot be accepted yet.",
-                hidden=True,
-            )
-            return
+        auction = typing.cast(RunningAuction, self._channels[channel])
 
         # We're going to compute the results again, and see if they differ, if they
         # do, we're going to refuse to accept the auction without a -force flag.
