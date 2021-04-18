@@ -390,39 +390,25 @@ class Auctioneer:
                 channel=channel, message=f"Auction Accepted: {results}"
             )
 
-    def next(self) -> list[AuctionMessage]:
-        # Check to see if we have any items pending, if we do not, then we can just
-        # return an empty list as we have nothing to start and nothing to say.
-        if not self._pending_items:
-            logger.debug("No items to auction, skipping.")
-            return []
+    def next(self) -> Iterable[AuctionMessage]:
+        while self._pending_items and not all(self._channels.values()):
+            # If we've gotten here, then we have items to auction, and we have available
+            # channels to auction them in, so let's go ahead and pick one of each.
+            item = self._pending_items.pop(0)
+            channel = random.choice(
+                [channel for channel, item in self._channels.items() if item is None]
+            )
 
-        # Likewise, check to see if any of our channels are open for a new item to
-        # be started in them, if they are not, then we can't start the next item
-        # and we have nothing to start or say.
-        if all(self._channels.values()):
-            logger.debug("No available channels, skipping.")
-            return []
-
-        # If we've gotten here, then we have items to auction, and we have available
-        # channels to auction them in, so let's go ahead and pick one of each.
-        item = self._pending_items.pop(0)
-        channel = random.choice(
-            [channel for channel, item in self._channels.items() if item is None]
-        )
-
-        # We have an item and a channel, now we'll actually start the auction.
-        auction = RunningAuction(item=item)
-        self._channels[channel] = auction
-        return [
-            AuctionMessage(
+            # We have an item and a channel, now we'll actually start the auction.
+            auction = RunningAuction(item=item)
+            self._channels[channel] = auction
+            yield AuctionMessage(
                 channel=channel,
                 message=(
                     f"Starting Bid for {item.description} by {item.added_by}, "
                     f"ending in {humanize_delta(auction.time_left)}"
                 ),
             )
-        ]
 
 
 class Auction(Cog):
@@ -448,10 +434,9 @@ class Auction(Cog):
             await channel.send(**message.as_kwargs())
 
         # Keep starting new auctions until we're not starting any more.
-        while messages := self.auctioneer.next():
-            for message in messages:
-                channel = discord.utils.get(server.channels, name=message.channel)
-                await channel.send(**message.as_kwargs())
+        for message in self.auctioneer.next():
+            channel = discord.utils.get(server.channels, name=message.channel)
+            await channel.send(**message.as_kwargs())
 
     @_run_auction.before_loop
     async def _before_run_auction(self):
