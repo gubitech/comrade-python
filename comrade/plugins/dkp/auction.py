@@ -586,7 +586,3 @@ class Auction(Cog):
 
         for message in self.auctioneer.restart(ctx.channel.name):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
-
-    @cog_ext.cog_subcommand(base="auction", subcommand_group="config", name="channels")
-    async def _auction_config_channels(self, ctx: SlashContext):
-        await ctx.send(hidden=True, content="Not Implemented")
