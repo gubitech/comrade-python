@@ -360,6 +360,25 @@ class Auctioneer:
     @check_auction_channels
     @check_auction_status(
         {
+            Status.Finished: "This auction has finished already and cannot be stopped.",
+            Status.Stopped: "This auction is already stopped.",
+        }
+    )
+    def stop(self, channel) -> Iterable[AuctionMessage]:
+        auction = typing.cast(RunningAuction, self._channels[channel])
+        auction.status = Status.Stopped
+
+        yield AuctionMessage(
+            channel=channel, message="Auction has been stopped", hidden=True
+        )
+        yield AuctionMessage(
+            channel=channel,
+            message=f"Auction for {auction.item.description} has been stopped.",
+        )
+
+    @check_auction_channels
+    @check_auction_status(
+        {
             Status.Running: "This auction has not finished and cannot be accepted yet.",
             Status.Stopped: "This auction has not finished and cannot be accepted yet.",
         }
@@ -394,7 +413,6 @@ class Auctioneer:
     @check_auction_status(
         {
             Status.Running: "This auction has not finished and cannot be reopened yet.",
-            Status.Stopped: "This auction has not finished and cannot be reopened yet.",
         }
     )
     def reopen(self, channel) -> Iterable[AuctionMessage]:
@@ -538,13 +556,12 @@ class Auction(Cog):
         for message in self.auctioneer.bid(ctx.channel.name, ctx.author.name, bid):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
-    @cog_ext.cog_subcommand(base="auction", name="start")
-    async def _auction_start(self, ctx: SlashContext):
-        await ctx.send(hidden=True, content="Not Implemented")
-
     @cog_ext.cog_subcommand(base="auction", name="stop")
     async def _auction_stop(self, ctx: SlashContext):
-        await ctx.send(hidden=True, content="Not Implemented")
+        await ctx.defer(hidden=True)
+
+        for message in self.auctioneer.stop(ctx.channel.name):
+            await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(
         base="auction",
