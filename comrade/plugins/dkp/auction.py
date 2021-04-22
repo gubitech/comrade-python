@@ -439,6 +439,20 @@ class Auctioneer:
             ),
         )
 
+    @check_auction_channels
+    def delete(self, channel) -> Iterable[AuctionMessage]:
+        # Grab the item that is currently being bid in our channel.
+        auction = typing.cast(RunningAuction, self._channels[channel])
+
+        self._channels[channel] = None
+
+        yield AuctionMessage(channel=channel, message="Auction Deleted", hidden=True)
+        yield AuctionMessage(
+            channel=channel,
+            message=f"Auction for {auction.item.description} has been deleted.",
+            hidden=True,
+        )
+
     def next(self) -> Iterable[AuctionMessage]:
         while self._pending_items and not all(self._channels.values()):
             # If we've gotten here, then we have items to auction, and we have available
@@ -559,9 +573,12 @@ class Auction(Cog):
         for message in self.auctioneer.reopen(ctx.channel.name):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
-    @cog_ext.cog_subcommand(base="auction", name="clear")
-    async def _auction_clear(self, ctx: SlashContext):
-        await ctx.send(hidden=True, content="Not Implemented")
+    @cog_ext.cog_subcommand(base="auction", name="delete")
+    async def _auction_delete(self, ctx: SlashContext):
+        await ctx.defer(hidden=True)
+
+        for message in self.auctioneer.delete(ctx.channel.name):
+            await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="restart")
     async def _auction_restart(self, ctx: SlashContext):
