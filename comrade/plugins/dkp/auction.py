@@ -491,11 +491,66 @@ class Auctioneer:
             )
 
 
+class Role(enum.Enum):
+    def __repr__(self):
+        return "<%s.%s>" % (self.__class__.__name__, self.name)
+
+    Officer = "officer"
+    Raider = "raider"
+    Recruit = "recruit"
+    Member = "member"
+
+
+def check_roles(*roles: typing.Union[Role, str, int]):
+    def deco(fn):
+        @functools.wraps(fn)
+        async def wrapper(self, ctx: SlashContext, *args, **kwargs):
+            if not set(ctx.author.roles) & {
+                self.get_role(role) for role in roles if role is not None
+            }:
+                await ctx.send(
+                    hidden=True,
+                    content=(
+                        "Sorry, you don't have the correct role to run this command."
+                    ),
+                )
+            else:
+                await fn(self, ctx, *args, **kwargs)
+
+        return wrapper
+
+    return deco
+
+
 class Auction(Cog):
     def __init__(self, bot):
         self.bot = bot
         self.auctioneer = Auctioneer(channels=self.bot.config.auction.channels)
+        self.server = None
+        self._role_mappings = {}
         self._run_auction.start()
+
+    @Cog.listener(name="on_ready")
+    async def _on_ready(self):
+        self.server = self.bot.get_guild(self.bot.config.discord.server_id)
+
+    def get_role(self, role: typing.Union[Role, str, int]):
+        if role not in self._role_mappings:
+            lookup_role = role
+            if isinstance(role, Role):
+                lookup_role = getattr(self.bot.config.auction.roles, role.value)
+
+            if isinstance(lookup_role, str):
+                for discord_role in self.server.roles:
+                    if discord_role.name == lookup_role:
+                        self._role_mappings[role] = discord_role
+                        break
+                else:
+                    self._role_mappings[role] = None
+            else:
+                self._role_mappings[role] = self.server.get_role(lookup_role)
+
+        return self._role_mappings[role]
 
     async def add_auction_item(self, item, quantity, added_by):
         # TODO: Fetch Item data
@@ -506,16 +561,14 @@ class Auction(Cog):
 
     @tasks.loop(seconds=5)
     async def _run_auction(self):
-        server = self.bot.get_guild(self.bot.config.discord.server_id)
-
         # Progress through any running auctions
         for message in self.auctioneer.run():
-            channel = discord.utils.get(server.channels, name=message.channel)
+            channel = discord.utils.get(self.server.channels, name=message.channel)
             await channel.send(**message.as_kwargs())
 
         # Keep starting new auctions until we're not starting any more.
         for message in self.auctioneer.next():
-            channel = discord.utils.get(server.channels, name=message.channel)
+            channel = discord.utils.get(self.server.channels, name=message.channel)
             await channel.send(**message.as_kwargs())
 
     @_run_auction.before_loop
@@ -547,6 +600,7 @@ class Auction(Cog):
             ),
         ],
     )
+    @check_roles(Role.Officer, Role.Raider, Role.Recruit, Role.Member)
     async def _bid(
         self, ctx: SlashContext, bid: int, id: int = 0, type_: str = "raider"
     ):
@@ -556,6 +610,7 @@ class Auction(Cog):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="stop")
+    @check_roles(Role.Officer)
     async def _auction_stop(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
 
@@ -576,6 +631,7 @@ class Auction(Cog):
             ),
         ],
     )
+    @check_roles(Role.Officer)
     async def _auction_accept(self, ctx: SlashContext, force: str = "no"):
         await ctx.defer(hidden=True)
 
@@ -583,6 +639,7 @@ class Auction(Cog):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="reopen")
+    @check_roles(Role.Officer)
     async def _auction_reopen(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
 
@@ -590,6 +647,7 @@ class Auction(Cog):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="delete")
+    @check_roles(Role.Officer)
     async def _auction_delete(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
 
@@ -597,6 +655,7 @@ class Auction(Cog):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="restart")
+    @check_roles(Role.Officer)
     async def _auction_restart(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
 

@@ -49,8 +49,18 @@ class Discord:
 
 
 @attr.s(slots=True, auto_attribs=True)
+class AuctionRoles:
+
+    officer: str
+    raider: str
+    recruit: str
+    member: str
+
+
+@attr.s(slots=True, auto_attribs=True)
 class Auction:
 
+    roles: AuctionRoles
     channels: list[str] = attr.ib(factory=list)
 
 
