@@ -390,6 +390,35 @@ class Auctioneer:
                 channel=channel, message=f"Auction Accepted: {results}"
             )
 
+    @check_auction_channels
+    @check_auction_status(
+        {
+            Status.Running: "This auction has not finished and cannot be reopened yet.",
+            Status.Stopped: "This auction has not finished and cannot be reopened yet.",
+        }
+    )
+    def reopen(self, channel) -> Iterable[AuctionMessage]:
+        # Grab the item that is currently being bid in our channel.
+        auction = typing.cast(RunningAuction, self._channels[channel])
+
+        # We're going to leave any existing bids alone, however we're going to reset the
+        # auction so it runs for the full duration again, just with the bids in the same
+        # state that they are now.
+        auction.results = None
+        auction.started_at = datetime.datetime.utcnow()
+        auction.last_updated = None
+        auction.last_bid = None
+        auction.status = Status.Running
+
+        yield AuctionMessage(channel=channel, message="Reopening Bidding", hidden=True)
+        yield AuctionMessage(
+            channel=channel,
+            message=(
+                f"Reopening Bids for {auction.item.description}, "
+                f"ending in {humanize_delta(auction.time_left)}"
+            ),
+        )
+
     def next(self) -> Iterable[AuctionMessage]:
         while self._pending_items and not all(self._channels.values()):
             # If we've gotten here, then we have items to auction, and we have available
@@ -505,7 +534,10 @@ class Auction(Cog):
 
     @cog_ext.cog_subcommand(base="auction", name="reopen")
     async def _auction_reopen(self, ctx: SlashContext):
-        await ctx.send(hidden=True, content="Not Implemented")
+        await ctx.defer(hidden=True)
+
+        for message in self.auctioneer.reopen(ctx.channel.name):
+            await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="clear")
     async def _auction_clear(self, ctx: SlashContext):
