@@ -472,7 +472,6 @@ class Auction(Cog):
     ):
         await ctx.defer(hidden=True)
 
-        # TODO: Use ID or something?
         for message in self.auctioneer.bid(ctx.channel.name, ctx.author.name, bid):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
