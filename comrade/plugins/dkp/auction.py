@@ -468,7 +468,6 @@ class Auctioneer:
         yield AuctionMessage(
             channel=channel,
             message=f"Auction for {auction.item.description} has been deleted.",
-            hidden=True,
         )
 
     def next(self) -> Iterable[AuctionMessage]:
