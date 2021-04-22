@@ -419,6 +419,26 @@ class Auctioneer:
             ),
         )
 
+    @check_auction_channels
+    def restart(self, channel) -> Iterable[AuctionMessage]:
+        # Grab the item that is currently being bid in our channel.
+        auction = typing.cast(RunningAuction, self._channels[channel])
+
+        # To restart the auction, we can just create a new RunningAuction with the same
+        # item, and the same channel.
+        item = auction.item
+        auction = RunningAuction(item=item)
+        self._channels[channel] = auction
+
+        yield AuctionMessage(channel=channel, message="Restarted Auction", hidden=True)
+        yield AuctionMessage(
+            channel=channel,
+            message=(
+                f"Restarting Bids for {item.description}, "
+                f"ending in {humanize_delta(auction.time_left)}"
+            ),
+        )
+
     def next(self) -> Iterable[AuctionMessage]:
         while self._pending_items and not all(self._channels.values()):
             # If we've gotten here, then we have items to auction, and we have available
@@ -545,7 +565,10 @@ class Auction(Cog):
 
     @cog_ext.cog_subcommand(base="auction", name="restart")
     async def _auction_restart(self, ctx: SlashContext):
-        await ctx.send(hidden=True, content="Not Implemented")
+        await ctx.defer(hidden=True)
+
+        for message in self.auctioneer.restart(ctx.channel.name):
+            await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", subcommand_group="config", name="channels")
     async def _auction_config_channels(self, ctx: SlashContext):
