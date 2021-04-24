@@ -1,4 +1,3 @@
-import signal
 import typing
 
 import attr
@@ -116,19 +115,7 @@ class Bot(_Bot):
         self._rpc_services.append(name)
         register_cb(servicer, self.rpc)
 
-    def reload(self):
-        for ext in EXTENSIONS:
-            self.reload_extension(ext, package="comrade.plugins")
-
-    def register_sighup(self):
-        def handler(_signum, _frame):
-            self.reload()
-
-        signal.signal(signal.SIGHUP, handler)
-
     def run(self, token=None, *args, **kwargs):
-        self.register_sighup()
-
         reflection.enable_server_reflection(self._rpc_services, self.rpc)
 
         if token is None:
