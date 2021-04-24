@@ -2,7 +2,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from comrade.plugins.dkp.rpc import dkp_pb2 as comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2
+from comrade.plugins.dkp.rpc import (
+    dkp_pb2 as comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2,
+)
 
 
 class DKPStub(object):
@@ -15,10 +17,10 @@ class DKPStub(object):
             channel: A grpc.Channel.
         """
         self.LinkCharacter = channel.unary_unary(
-                '/dkp.DKP/LinkCharacter',
-                request_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterRequest.SerializeToString,
-                response_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterResponse.FromString,
-                )
+            "/dkp.DKP/LinkCharacter",
+            request_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterRequest.SerializeToString,
+            response_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterResponse.FromString,
+        )
 
 
 class DKPServicer(object):
@@ -27,40 +29,53 @@ class DKPServicer(object):
     def LinkCharacter(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
 
 
 def add_DKPServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'LinkCharacter': grpc.unary_unary_rpc_method_handler(
-                    servicer.LinkCharacter,
-                    request_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterRequest.FromString,
-                    response_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterResponse.SerializeToString,
-            ),
+        "LinkCharacter": grpc.unary_unary_rpc_method_handler(
+            servicer.LinkCharacter,
+            request_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterRequest.FromString,
+            response_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterResponse.SerializeToString,
+        ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'dkp.DKP', rpc_method_handlers)
+        "dkp.DKP", rpc_method_handlers
+    )
     server.add_generic_rpc_handlers((generic_handler,))
 
 
- # This class is part of an EXPERIMENTAL API.
+# This class is part of an EXPERIMENTAL API.
 class DKP(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def LinkCharacter(request,
+    def LinkCharacter(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
             target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/dkp.DKP/LinkCharacter',
+            "/dkp.DKP/LinkCharacter",
             comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterRequest.SerializeToString,
             comrade_dot_plugins_dot_dkp_dot_rpc_dot_dkp__pb2.LinkCharacterResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+        )

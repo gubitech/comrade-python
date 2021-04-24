@@ -2,7 +2,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from comrade.plugins.dkp.rpc import auction_pb2 as comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2
+from comrade.plugins.dkp.rpc import (
+    auction_pb2 as comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2,
+)
 
 
 class AuctionStub(object):
@@ -15,10 +17,10 @@ class AuctionStub(object):
             channel: A grpc.Channel.
         """
         self.AddItem = channel.unary_unary(
-                '/auction.Auction/AddItem',
-                request_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemRequest.SerializeToString,
-                response_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemResponse.FromString,
-                )
+            "/auction.Auction/AddItem",
+            request_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemRequest.SerializeToString,
+            response_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemResponse.FromString,
+        )
 
 
 class AuctionServicer(object):
@@ -27,40 +29,53 @@ class AuctionServicer(object):
     def AddItem(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
 
 
 def add_AuctionServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'AddItem': grpc.unary_unary_rpc_method_handler(
-                    servicer.AddItem,
-                    request_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemRequest.FromString,
-                    response_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemResponse.SerializeToString,
-            ),
+        "AddItem": grpc.unary_unary_rpc_method_handler(
+            servicer.AddItem,
+            request_deserializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemRequest.FromString,
+            response_serializer=comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemResponse.SerializeToString,
+        ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'auction.Auction', rpc_method_handlers)
+        "auction.Auction", rpc_method_handlers
+    )
     server.add_generic_rpc_handlers((generic_handler,))
 
 
- # This class is part of an EXPERIMENTAL API.
+# This class is part of an EXPERIMENTAL API.
 class Auction(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def AddItem(request,
+    def AddItem(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
             target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/auction.Auction/AddItem',
+            "/auction.Auction/AddItem",
             comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemRequest.SerializeToString,
             comrade_dot_plugins_dot_dkp_dot_rpc_dot_auction__pb2.AddItemResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+        )
