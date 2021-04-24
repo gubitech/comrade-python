@@ -382,16 +382,44 @@ class Auctioneer:
         # Grab the item that is currently being bid in our channel.
         auction = typing.cast(RunningAuction, self._channels[channel])
 
-        # TODO: Check if the bid is actually valid (has the DKP, etc)
+        # Basic rules for a valid bid:
+        #   1. If the bids are < the valuable threshold, then bids can go up
+        #      by 1.
+        #   2. If the bid is >= the valuable threshold, then the bid must be
+        #      divisble by 5, UNLESS it's an All In Bid, OR matching an All In Bid.
+        #   3. The maximum allowed to bid on an item is 80.
+        #   4. Player's cannot bid more than they have.
+        # TODO: Implement All In Rules
+        # TODO: Implement Current DKP Check
+        if bid_amount >= self._limits.valuable and bid_amount % 5:
+            yield AuctionMessage(
+                channel=channel,
+                message=(
+                    f"Error: Invalid Bid (bids above {self._limits.valuable} must "
+                    f"be in increments of 5)."
+                ),
+                hidden=True,
+            )
+        elif bid_amount > self._limits.maximum:
+            yield AuctionMessage(
+                channel=channel,
+                message=(
+                    f"Error: Invalid Bid (bids above {self._limits.maximum} are not "
+                    f"allowed)."
+                ),
+                hidden=True,
+            )
+        else:
+            # Add our bid to the system, extending the time left before the auction
+            # ends if required.
+            bid = Bid(bidder=bidder, bid=bid_amount, id=bid_id, rank=rank)
+            auction.bids.add(bid)
+            auction.last_bid = datetime.datetime.utcnow()
 
-        # Add our bid to the system, extending the time left before the auction
-        # ends if required.
-        bid = Bid(bidder=bidder, bid=bid_amount, id=bid_id, rank=rank)
-        auction.bids.add(bid)
-        auction.last_bid = datetime.datetime.utcnow()
-
-        yield AuctionMessage(channel=channel, message="Bid Accepted!", hidden=True)
-        yield AuctionMessage(channel=channel, message=f"{bid.bidder} has bid {bid.bid}")
+            yield AuctionMessage(channel=channel, message="Bid Accepted!", hidden=True)
+            yield AuctionMessage(
+                channel=channel, message=f"{bid.bidder} has bid {bid.bid}"
+            )
 
     @check_auction_channels
     @check_auction_status(
