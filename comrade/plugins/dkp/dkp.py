@@ -11,7 +11,7 @@ from sqlalchemy import Table, Column, Integer, String, DateTime, sql
 
 
 from comrade import db
-from comrade.plugins.dkp.provider import DKPProvider
+from comrade.plugins.dkp.provider import DKPProvider, CharacterDKP
 
 
 pending_claims = Table(
@@ -51,6 +51,9 @@ class DKP(Cog):
     def __init__(self, bot):
         self.bot = bot
         self.provider = DKPProvider(self.bot.config.dkp)
+
+    async def get_dkp(self) -> typing.Mapping[str, CharacterDKP]:
+        return await self.provider.list_dkp()
 
     async def get_character(self, user_id: int) -> typing.Optional[str]:
         async with self.bot.db.begin() as tx:

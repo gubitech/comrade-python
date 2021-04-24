@@ -14,10 +14,10 @@ from comrade.core import DKP as DKPConfig
 class CharacterDKP:
 
     name: str
-    current: int
-    earned: int
-    spent: int
-    adjustments: int
+    current: int = 0
+    earned: int = 0
+    spent: int = 0
+    adjustments: int = 0
 
 
 class DKPProvider:
@@ -25,32 +25,35 @@ class DKPProvider:
         self.config = config
         self.db = create_async_engine(self.config.database, echo=True)
 
-    async def current_dkp(self, character: str) -> typing.Optional[CharacterDKP]:
+    async def list_dkp(self) -> typing.Mapping[str, CharacterDKP]:
         url = "?".join(
             [
                 urllib.parse.urljoin(self.config.url, "api.php"),
                 urllib.parse.urlencode({"function": "points", "format": "json"}),
             ]
         )
+
         # TODO: This shoudl have a persistent session, not throwing one away every
         #       time.
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 data = await resp.json()
 
-        # The data structure returned by EQDKP is kind of wonky, what we're going
-        # to have to do here is iterate over the dict fo players, ignoring the key
-        # and look for a character named what we're looking for. If we don't find
-        # one, then we just move on and return nothing.
-        for player in data.get("players", {}).values():
-            if player.get("name", "").lower() == character.lower():
-                points = player["points"][f"multidkp_points:{self.config.dkp_pool_id}"]
-                return CharacterDKP(
-                    name=player["name"].lower(),
-                    current=points["points_current"],
-                    earned=points["points_earned"],
-                    spent=points["points_spent"],
-                    adjustments=points["points_adjustment"],
-                )
+        # The EQDKP data structure is kinda wonky and weird, we're going to massage
+        # it into something that works better for us.
+        # TODO: We filter our inactive and hidden people, is that right?
+        pool_name = f"multidkp_points:{self.config.dkp_pool_id}"
+        return {
+            p["name"].lower(): CharacterDKP(
+                name=p["name"].lower(),
+                current=int(p["points"][pool_name]["points_current"]),
+                earned=int(p["points"][pool_name]["points_earned"]),
+                spent=int(p["points"][pool_name]["points_spent"]),
+                adjustments=int(p["points"][pool_name]["points_adjustment"]),
+            )
+            for p in data.get("players", {}).values()
+            if p["active"] == "1" and not p["hidden"]
+        }
 
-        return None
+    async def current_dkp(self, character: str) -> typing.Optional[CharacterDKP]:
+        return (await self.list_dkp()).get(character.lower(), None)

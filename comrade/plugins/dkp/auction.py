@@ -19,6 +19,8 @@ from discord_slash import cog_ext, SlashContext
 from discord_slash.model import SlashCommandOptionType as OptionType
 from discord_slash.utils.manage_commands import create_option
 
+from .provider import CharacterDKP
+
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +211,44 @@ class AuctionMessage:
             return {"content": self.message}
 
 
+def validate_bid(
+    bidder: str,
+    bid_amount: int,
+    dkp: typing.Mapping[str, CharacterDKP],
+    *,
+    valuable_threshold: int,
+    maximum: int,
+) -> tuple[bool, str]:
+    # Basic rules for a valid bid:
+    #   1. If the bids are < the valuable threshold, then bids can go up
+    #      by 1.
+    #   2. If the bid is >= the valuable threshold, then the bid must be
+    #      divisble by 5, UNLESS it's an All In Bid, OR matching an All In Bid.
+    #   3. The maximum allowed to bid on an item is 80.
+    #   4. Player's cannot bid more than they have.
+    #   5. A player cannot bid 0.
+    # TODO: Implement All In Rules
+    # TODO: Implement Current DKP Check
+    # TODO: Implement 0 bid check.
+    if bid_amount >= valuable_threshold and bid_amount % 5:
+        return (
+            False,
+            (
+                f"Error: Invalid Bid (bids above {valuable_threshold} must "
+                f"be in increments of 5)."
+            ),
+        )
+    elif bid_amount > maximum:
+        return (
+            False,
+            f"Error: Invalid Bid (bids above {maximum} are not allowed).",
+        )
+    elif bid_amount > dkp.get(bidder, CharacterDKP(name=bidder)).current:
+        return (False, "Error: Invalid Bid (not enough dkp).")
+
+    return (True, "")
+
+
 def _bid_key(valuable_treshold):
     def key_fn(bid: Bid):
         # Returns a tuple, this tuple is used to sort all of our bids, bids
@@ -321,9 +361,14 @@ class Auctioneer:
             channel: None for channel in channels
         }
         self._limits = limits
+        self._dkp: typing.Mapping[str, CharacterDKP] = {}
 
     def add(self, item: AuctionItem) -> None:
         self._pending_items.append(item)
+
+    def update_dkp(self, dkp):
+        self._dkp.clear()
+        self._dkp.update(dkp)
 
     def run(self) -> Iterable[AuctionMessage]:
         # Loop over any running auctions we have, posting updates and/or closing the
@@ -382,44 +427,25 @@ class Auctioneer:
         # Grab the item that is currently being bid in our channel.
         auction = typing.cast(RunningAuction, self._channels[channel])
 
-        # Basic rules for a valid bid:
-        #   1. If the bids are < the valuable threshold, then bids can go up
-        #      by 1.
-        #   2. If the bid is >= the valuable threshold, then the bid must be
-        #      divisble by 5, UNLESS it's an All In Bid, OR matching an All In Bid.
-        #   3. The maximum allowed to bid on an item is 80.
-        #   4. Player's cannot bid more than they have.
-        # TODO: Implement All In Rules
-        # TODO: Implement Current DKP Check
-        if bid_amount >= self._limits.valuable and bid_amount % 5:
-            yield AuctionMessage(
-                channel=channel,
-                message=(
-                    f"Error: Invalid Bid (bids above {self._limits.valuable} must "
-                    f"be in increments of 5)."
-                ),
-                hidden=True,
-            )
-        elif bid_amount > self._limits.maximum:
-            yield AuctionMessage(
-                channel=channel,
-                message=(
-                    f"Error: Invalid Bid (bids above {self._limits.maximum} are not "
-                    f"allowed)."
-                ),
-                hidden=True,
-            )
-        else:
-            # Add our bid to the system, extending the time left before the auction
-            # ends if required.
-            bid = Bid(bidder=bidder, bid=bid_amount, id=bid_id, rank=rank)
-            auction.bids.add(bid)
-            auction.last_bid = datetime.datetime.utcnow()
+        valid, error = validate_bid(
+            bidder,
+            bid_amount,
+            self._dkp,
+            valuable_threshold=self._limits.valuable,
+            maximum=self._limits.maximum,
+        )
+        if not valid:
+            yield AuctionMessage(channel=channel, message=error, hidden=True)
+            return
 
-            yield AuctionMessage(channel=channel, message="Bid Accepted!", hidden=True)
-            yield AuctionMessage(
-                channel=channel, message=f"{bid.bidder} has bid {bid.bid}"
-            )
+        # Add our bid to the system, extending the time left before the auction
+        # ends if required.
+        bid = Bid(bidder=bidder, bid=bid_amount, id=bid_id, rank=rank)
+        auction.bids.add(bid)
+        auction.last_bid = datetime.datetime.utcnow()
+
+        yield AuctionMessage(channel=channel, message="Bid Accepted!", hidden=True)
+        yield AuctionMessage(channel=channel, message=f"{bid.bidder} has bid {bid.bid}")
 
     @check_auction_channels
     @check_auction_status(
@@ -688,6 +714,8 @@ class Auction(Cog):
         # TODO: Do we need to differentiate between raider alts and raider/member alts?
         if type_ == "alt":
             rank = BidderRank.Alt
+
+        self.auctioneer.update_dkp(await self.dkp.get_dkp())
 
         # We need to get this person's ingame character name, if they haven't linked a
         # character, then they're not allowed to bid anything.
