@@ -78,10 +78,10 @@ class BidderRank(enum.Enum):
     def __repr__(self):
         return "<%s.%s>" % (self.__class__.__name__, self.name)
 
-    Raider = 1
-    Alt = 0
-    Recruit = 0
-    Member = 0
+    Raider = enum.auto()
+    Alt = enum.auto()
+    Recruit = enum.auto()
+    Member = enum.auto()
 
 
 @attr.s(slots=True, frozen=True, auto_attribs=True)
@@ -264,7 +264,7 @@ def _bid_key(dkp: typing.Mapping[str, CharacterDKP], member_treshold: int):
         #  2. When a bid is < valuable_threshold, everyone is of equal priority.
         #  3. Smaller Bids are lower priority than higher bids.
         return (
-            bid.rank.value if bid.bid >= member_treshold else 0,
+            1 if bid.bid >= member_treshold and bid.rank is BidderRank.Raider else 0,
             bid.bid,
             dkp.get(bid.bidder, CharacterDKP(name=bid.bidder)).current,
         )
