@@ -705,7 +705,11 @@ class Auction(Cog):
         elif self.get_role(Role.Member) in ctx.author.roles:
             rank = BidderRank.Member
         else:
-            raise ValueError(f"{ctx.author.name} has an unknown rank for bidding.")
+            await ctx.send(
+                content="Couldn't determine your bidding rank, contact an officer.",
+                hidden=True,
+            )
+            return
 
         if type_ == "alt":
             rank = BidderRank.Alt
