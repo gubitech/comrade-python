@@ -214,6 +214,7 @@ class AuctionMessage:
 def validate_bid(
     bidder: str,
     bid_amount: int,
+    bids: Iterable[Bid],
     dkp: typing.Mapping[str, CharacterDKP],
     *,
     valuable_threshold: int,
@@ -225,10 +226,9 @@ def validate_bid(
     #      by 1.
     #   2. If the bid is >= the valuable threshold, then the bid must be
     #      divisble by 5, UNLESS it's an All In Bid, OR matching an All In Bid.
-    #   3. The maximum allowed to bid on an item is 80.
-    #   4. Player's cannot bid more than they have.
-    #   5. A player cannot bid 0.
-    # TODO: Implement the ability to match an existing bid.
+    #   3. A player cannot bid > the maximum threshold.
+    #   4. A player cannot bid < the minimum threshold.
+    #   5. Player's cannot bid more than they have.
     bidder_dkp = dkp.get(bidder, CharacterDKP(name=bidder))
     if bid_amount > maximum:
         return (
@@ -240,6 +240,11 @@ def validate_bid(
     elif bidder_dkp.current == bid_amount:
         # We do nothing here, because this exists just so that we don't reject
         # an "all in" bid because it doesn't match the "divisble by 5" rules.
+        pass
+    elif bid_amount in {bid.bid for bid in bids}:
+        # Again we do nothing here, because this only exists to prevent us from
+        # progressing further down the elif chain, and allowing bids that match
+        # already existing bids.
         pass
     elif bid_amount >= valuable_threshold and bid_amount % 5:
         return (
@@ -458,6 +463,7 @@ class Auctioneer:
         valid, error = validate_bid(
             bidder,
             bid_amount,
+            auction.bids,
             self._dkp,
             valuable_threshold=self._limits.valuable,
             minimum=self._limits.minimum,
