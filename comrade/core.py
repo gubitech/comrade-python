@@ -62,6 +62,7 @@ class AuctionLimits:
 
     valuable: int
     member: int
+    minimum: int
     maximum: int
 
 

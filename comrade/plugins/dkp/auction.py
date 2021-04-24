@@ -217,6 +217,7 @@ def validate_bid(
     dkp: typing.Mapping[str, CharacterDKP],
     *,
     valuable_threshold: int,
+    minimum: int,
     maximum: int,
 ) -> tuple[bool, str]:
     # Basic rules for a valid bid:
@@ -227,7 +228,6 @@ def validate_bid(
     #   3. The maximum allowed to bid on an item is 80.
     #   4. Player's cannot bid more than they have.
     #   5. A player cannot bid 0.
-    # TODO: Implement 0 bid check.
     # TODO: Implement the ability to match an existing bid.
     bidder_dkp = dkp.get(bidder, CharacterDKP(name=bidder))
     if bid_amount > maximum:
@@ -235,6 +235,8 @@ def validate_bid(
             False,
             f"Error: Invalid Bid (bids above {maximum} are not allowed).",
         )
+    elif bid_amount < minimum:
+        return (False, f"Error: Invalid bid (bids below {minimum} are not allowed).")
     elif bidder_dkp.current == bid_amount:
         return (True, "")
     elif bid_amount >= valuable_threshold and bid_amount % 5:
@@ -453,6 +455,7 @@ class Auctioneer:
             bid_amount,
             self._dkp,
             valuable_threshold=self._limits.valuable,
+            minimum=self._limits.minimum,
             maximum=self._limits.maximum,
         )
         if not valid:
