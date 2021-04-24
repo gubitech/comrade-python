@@ -93,7 +93,7 @@ class Bot(_Bot):
         with open(config_file) as fp:
             self.config: Config = cattr.structure(toml.load(fp), Config)
 
-        self.db = create_async_engine(self.config.database, echo=True)
+        self.db = create_async_engine(self.config.database)
 
         self.rpc = grpc.aio.server()
         self._rpc_services = []
