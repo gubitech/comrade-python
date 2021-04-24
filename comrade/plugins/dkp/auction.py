@@ -593,6 +593,7 @@ class Auction(Cog):
             channels=self.bot.config.auction.channels,
             limits=self.bot.config.auction.limits,
         )
+        self.dkp = self.bot.get_cog("DKP")
         self.server = None
         self._role_mappings = {}
         self._run_auction.start()
@@ -688,10 +689,22 @@ class Auction(Cog):
         if type_ == "alt":
             rank = BidderRank.Alt
 
-        for message in self.auctioneer.bid(
-            ctx.channel.name, ctx.author.name, bid, id_, rank
-        ):
-            await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
+        # We need to get this person's ingame character name, if they haven't linked a
+        # character, then they're not allowed to bid anything.
+        character = await self.dkp.get_character(ctx.author.id)
+        if character is None:
+            await ctx.send(
+                hidden=True,
+                content=(
+                    "Error: You do not have a character linked to this discord "
+                    "account."
+                ),
+            )
+        else:
+            for message in self.auctioneer.bid(
+                ctx.channel.name, character, bid, id_, rank
+            ):
+                await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="stop")
     @check_roles(Role.Officer)

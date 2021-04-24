@@ -1,6 +1,7 @@
 import datetime
 import string
 import secrets
+import typing
 
 from discord.ext.commands import Cog
 from discord_slash import cog_ext, SlashContext
@@ -51,6 +52,21 @@ class DKP(Cog):
         self.bot = bot
         self.provider = DKPProvider(self.bot.config.dkp)
 
+    async def get_character(self, user_id: int) -> typing.Optional[str]:
+        async with self.bot.db.begin() as tx:
+            linked = (
+                await tx.execute(
+                    sql.select(linked_characters).where(
+                        linked_characters.c.discord_user == user_id
+                    )
+                )
+            ).first()
+
+        if linked is None:
+            return None
+
+        return linked._mapping["character"]
+
     @cog_ext.cog_subcommand(
         base="dkp",
         name="check",
@@ -73,19 +89,11 @@ class DKP(Cog):
         if user is None:
             user = ctx.author
 
-        # We need to look up the main for this discord user
-        async with self.bot.db.begin() as tx:
-            linked = (
-                await tx.execute(
-                    sql.select(linked_characters).where(
-                        linked_characters.c.discord_user == user.id
-                    )
-                )
-            ).first()
+        character = await self.get_character(user.id)
 
         # If the given user does not have a linked character, then we can't look up
         # their DKP, and we should bail out with an error.
-        if linked is None:
+        if character is None:
             await ctx.send(
                 content=f"***Error:*** {user.mention} does not have a linked character.",
                 hidden=True,
@@ -93,13 +101,13 @@ class DKP(Cog):
             return
 
         # We have a character name now, so we'll look up their DKP using our DKP Provider.
-        dkp = await self.provider.current_dkp(linked._mapping["character"])
+        dkp = await self.provider.current_dkp(character)
         if dkp is None:
             # If we weren't able to locate a character in the DKP system, then that's also
             # an error we need to bail out with.
             await ctx.send(
                 content=(
-                    f"***Error:*** {linked._mapping['character'].title()} does not appear in "
+                    f"***Error:*** {character.title()} does not appear in "
                     f"the DKP system, have they ever earned any DKP?"
                 ),
                 hidden=True,
