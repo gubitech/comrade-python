@@ -228,7 +228,6 @@ def validate_bid(
     #   4. Player's cannot bid more than they have.
     #   5. A player cannot bid 0.
     # TODO: Implement All In Rules
-    # TODO: Implement Current DKP Check
     # TODO: Implement 0 bid check.
     if bid_amount >= valuable_threshold and bid_amount % 5:
         return (
@@ -270,7 +269,6 @@ def determine_results(auction: RunningAuction, *, member_treshold=0) -> AuctionR
     # auction has ended, that is the actual result).
     # TODO: Implement Tie Break via Current DKP
     # TODO: filter out all but a players highest bid.
-    # TODO: Add Alt/Member/Recruit status to sorting.
     need = auction.item.quantity
     winners = []
     tied = []
@@ -709,7 +707,6 @@ class Auction(Cog):
         else:
             raise ValueError(f"{ctx.author.name} has an unknown rank for bidding.")
 
-        # TODO: Do we need to differentiate between raider alts and raider/member alts?
         if type_ == "alt":
             rank = BidderRank.Alt
 
