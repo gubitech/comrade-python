@@ -72,11 +72,23 @@ class Status(enum.Enum):
     Finished = enum.auto()
 
 
+class BidderRank(enum.Enum):
+    def __repr__(self):
+        return "<%s.%s>" % (self.__class__.__name__, self.name)
+
+    Raider = 1
+    Alt = 0
+    Recruit = 0
+    Member = 0
+
+
 @attr.s(slots=True, frozen=True, auto_attribs=True)
 class Bid:
 
     bidder: str
+    rank: BidderRank
     bid: int
+    id: int = 0
 
 
 @attr.s(slots=True, frozen=True, auto_attribs=True)
@@ -197,6 +209,16 @@ class AuctionMessage:
             return {"content": self.message}
 
 
+def _bid_key(bid: Bid):
+    # Returns a tuple, this tuple is used to sort all of our bids, bids
+    # that are worse should compare lower to bids that are better.
+    #
+    # Current Rules:
+    #  1. Mains are higher priority than anyone else.
+    #  2. Smaller Bids are lower priority than higher bids.
+    return (bid.rank.value, bid.bid)
+
+
 def determine_results(auction: RunningAuction) -> AuctionResults:
     # This function *MUST NOT* modify the running auction, it should just
     # indicate what the results would be, if it ended right now (which, if the
@@ -209,8 +231,8 @@ def determine_results(auction: RunningAuction) -> AuctionResults:
     tied = []
     rolled = 0
 
-    all_bids = sorted(auction.bids, key=lambda b: b.bid, reverse=True)
-    for _, b in itertools.groupby(all_bids, lambda b: b.bid):
+    all_bids = sorted(auction.bids, key=_bid_key, reverse=True)
+    for _, b in itertools.groupby(all_bids, _bid_key):
         bids = list(b)
 
         # If the number of people at this bid+current dkp doesn't exceed the
@@ -341,16 +363,17 @@ class Auctioneer:
             ),
         }
     )
-    def bid(self, channel, bidder, bid_amount) -> Iterable[AuctionMessage]:
+    def bid(
+        self, channel, bidder, bid_amount: int, bid_id: int, rank: BidderRank
+    ) -> Iterable[AuctionMessage]:
         # Grab the item that is currently being bid in our channel.
         auction = typing.cast(RunningAuction, self._channels[channel])
 
         # TODO: Check if the bid is actually valid (has the DKP, etc)
-        # TODO: Implement Recruit/Member/Alt Bidding.
 
         # Add our bid to the system, extending the time left before the auction
         # ends if required.
-        bid = Bid(bidder=bidder, bid=bid_amount)
+        bid = Bid(bidder=bidder, bid=bid_amount, id=bid_id, rank=rank)
         auction.bids.add(bid)
         auction.last_bid = datetime.datetime.utcnow()
 
@@ -593,20 +616,37 @@ class Auction(Cog):
             ),
             create_option(
                 name="type",
-                description="the type of bid (default: raider)",
+                description="the type of bid (default: main)",
                 option_type=OptionType.STRING,
                 required=False,
-                choices=["raider", "member", "alt", "recruit"],
+                choices=["main", "alt"],
             ),
         ],
     )
     @check_roles(Role.Officer, Role.Raider, Role.Recruit, Role.Member)
     async def _bid(
-        self, ctx: SlashContext, bid: int, id: int = 0, type_: str = "raider"
+        self, ctx: SlashContext, bid: int, id_: int = 0, type_: str = "main"
     ):
         await ctx.defer(hidden=True)
 
-        for message in self.auctioneer.bid(ctx.channel.name, ctx.author.name, bid):
+        assert type_ in {"main", "alt"}
+
+        if self.get_role(Role.Recruit) in ctx.author.roles:
+            rank = BidderRank.Recruit
+        elif self.get_role(Role.Raider) in ctx.author.roles:
+            rank = BidderRank.Raider
+        elif self.get_role(Role.Member) in ctx.author.roles:
+            rank = BidderRank.Member
+        else:
+            raise ValueError(f"{ctx.author.name} has an unknown rank for bidding.")
+
+        # TODO: Do we need to differentiate between raider alts and raider/member alts?
+        if type_ == "alt":
+            rank = BidderRank.Alt
+
+        for message in self.auctioneer.bid(
+            ctx.channel.name, ctx.author.name, bid, id_, rank
+        ):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
     @cog_ext.cog_subcommand(base="auction", name="stop")
