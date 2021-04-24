@@ -710,55 +710,9 @@ class Auction(Cog):
     async def _before_run_auction(self):
         await self.bot.wait_until_ready()
 
-    @cog_ext.cog_slash(
-        name="bid",
-        description="Bid on the auction",
-        options=[
-            create_option(
-                name="bid",
-                description="the amount of dkp to bid",
-                option_type=OptionType.INTEGER,
-                required=True,
-            ),
-            create_option(
-                name="id",
-                description="the numeric ID for the bid (default: 0)",
-                option_type=OptionType.INTEGER,
-                required=False,
-            ),
-            create_option(
-                name="type",
-                description="the type of bid (default: main)",
-                option_type=OptionType.STRING,
-                required=False,
-                choices=["main", "alt"],
-            ),
-        ],
-    )
-    @check_roles(Role.Officer, Role.Raider, Role.Recruit, Role.Member)
-    async def _bid(
-        self, ctx: SlashContext, bid: int, id_: int = 0, type_: str = "main"
+    async def _do_bid(
+        self, ctx: SlashContext, bid: int, rank: BidderRank, id_: int = 0
     ):
-        await ctx.defer(hidden=True)
-
-        assert type_ in {"main", "alt"}
-
-        if self.get_role(Role.Recruit) in ctx.author.roles:
-            rank = BidderRank.Recruit
-        elif self.get_role(Role.Raider) in ctx.author.roles:
-            rank = BidderRank.Raider
-        elif self.get_role(Role.Member) in ctx.author.roles:
-            rank = BidderRank.Member
-        else:
-            await ctx.send(
-                content="Couldn't determine your bidding rank, contact an officer.",
-                hidden=True,
-            )
-            return
-
-        if type_ == "alt":
-            rank = BidderRank.Alt
-
         self.auctioneer.update_dkp(await self.dkp.get_dkp())
 
         # We need to get this person's ingame character name, if they haven't linked a
@@ -777,6 +731,66 @@ class Auction(Cog):
                 ctx.channel.name, character, bid, id_, rank
             ):
                 await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
+
+    @cog_ext.cog_slash(
+        name="bid",
+        description="Bid on the auction",
+        options=[
+            create_option(
+                name="bid",
+                description="the amount of dkp to bid",
+                option_type=OptionType.INTEGER,
+                required=True,
+            ),
+            create_option(
+                name="id",
+                description="the numeric ID for the bid (default: 0)",
+                option_type=OptionType.INTEGER,
+                required=False,
+            ),
+        ],
+    )
+    @check_roles(Role.Officer, Role.Raider, Role.Recruit, Role.Member)
+    async def _bid(self, ctx: SlashContext, bid: int, id_: int = 0):
+        await ctx.defer(hidden=True)
+
+        if self.get_role(Role.Recruit) in ctx.author.roles:
+            rank = BidderRank.Recruit
+        elif self.get_role(Role.Raider) in ctx.author.roles:
+            rank = BidderRank.Raider
+        elif self.get_role(Role.Member) in ctx.author.roles:
+            rank = BidderRank.Member
+        else:
+            await ctx.send(
+                content="Couldn't determine your bidding rank, contact an officer.",
+                hidden=True,
+            )
+            return
+
+        await self._do_bid(ctx, bid, rank, id_)
+
+    @cog_ext.cog_slash(
+        name="bid-alt",
+        description="Bid on the auction for an alt",
+        options=[
+            create_option(
+                name="bid",
+                description="the amount of dkp to bid",
+                option_type=OptionType.INTEGER,
+                required=True,
+            ),
+            create_option(
+                name="id",
+                description="the numeric ID for the bid (default: 0)",
+                option_type=OptionType.INTEGER,
+                required=False,
+            ),
+        ],
+    )
+    @check_roles(Role.Officer, Role.Raider, Role.Recruit, Role.Member)
+    async def _bidalt(self, ctx: SlashContext, bid: int, id_: int = 0):
+        await ctx.defer(hidden=True)
+        await self._do_bid(ctx, bid, BidderRank.Alt, id_)
 
     @cog_ext.cog_subcommand(
         base="auction", name="stop", description="Stop a running auction"
