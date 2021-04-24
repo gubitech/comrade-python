@@ -249,7 +249,7 @@ def validate_bid(
     return (True, "")
 
 
-def _bid_key(valuable_treshold):
+def _bid_key(member_treshold):
     def key_fn(bid: Bid):
         # Returns a tuple, this tuple is used to sort all of our bids, bids
         # that are worse should compare lower to bids that are better.
@@ -259,14 +259,12 @@ def _bid_key(valuable_treshold):
         #     anyone else.
         #  2. When a bid is < valuable_threshold, everyone is of equal priority.
         #  3. Smaller Bids are lower priority than higher bids.
-        return (bid.rank.value if bid.bid >= valuable_treshold else 0, bid.bid)
+        return (bid.rank.value if bid.bid >= member_treshold else 0, bid.bid)
 
     return key_fn
 
 
-def determine_results(
-    auction: RunningAuction, *, valuable_treshold=0
-) -> AuctionResults:
+def determine_results(auction: RunningAuction, *, member_treshold=0) -> AuctionResults:
     # This function *MUST NOT* modify the running auction, it should just
     # indicate what the results would be, if it ended right now (which, if the
     # auction has ended, that is the actual result).
@@ -278,8 +276,8 @@ def determine_results(
     tied = []
     rolled = 0
 
-    all_bids = sorted(auction.bids, key=_bid_key(valuable_treshold), reverse=True)
-    for _, b in itertools.groupby(all_bids, _bid_key(valuable_treshold)):
+    all_bids = sorted(auction.bids, key=_bid_key(member_treshold), reverse=True)
+    for _, b in itertools.groupby(all_bids, _bid_key(member_treshold)):
         bids = list(b)
 
         # If the number of people at this bid+current dkp doesn't exceed the
@@ -385,7 +383,7 @@ class Auctioneer:
             if not auction.time_left and auction.status is Status.Running:
                 auction.status = Status.Finished
                 auction.results = determine_results(
-                    auction, valuable_treshold=self._limits.valuable
+                    auction, member_treshold=self._limits.member
                 )
                 yield AuctionMessage(
                     channel=channel,
@@ -397,7 +395,7 @@ class Auctioneer:
             if auction.needs_update:
                 auction.last_updated = datetime.datetime.utcnow()
                 results = determine_results(
-                    auction, valuable_treshold=self._limits.valuable
+                    auction, member_treshold=self._limits.member
                 )
                 yield AuctionMessage(
                     channel=channel,
@@ -479,7 +477,7 @@ class Auctioneer:
 
         # We're going to compute the results again, and see if they differ, if they
         # do, we're going to refuse to accept the auction without a -force flag.
-        results = determine_results(auction, valuable_treshold=self._limits.valuable)
+        results = determine_results(auction, member_treshold=self._limits.member)
         if not force and auction.results != results:
             # TODO: Mention the ability to reopen + force accept the new results.
             yield AuctionMessage(
