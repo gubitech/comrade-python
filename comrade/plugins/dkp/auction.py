@@ -359,6 +359,10 @@ class Auctioneer:
         self._limits = limits
         self._dkp: typing.Mapping[str, CharacterDKP] = {}
 
+    @property
+    def has_running_auctions(self) -> bool:
+        return any(self._channels.values())
+
     def add(self, item: AuctionItem) -> None:
         self._pending_items.append(item)
 
@@ -651,6 +655,10 @@ class Auction(Cog):
 
     @tasks.loop(seconds=5)
     async def _run_auction(self):
+        # Update our DKP to catch any changes
+        if self.auctioneer.has_running_auctions:
+            self.auctioneer.update_dkp(await self.dkp.get_dkp())
+
         # Progress through any running auctions
         for message in self.auctioneer.run():
             channel = discord.utils.get(self.server.channels, name=message.channel)
