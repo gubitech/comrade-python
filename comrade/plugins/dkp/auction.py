@@ -778,7 +778,9 @@ class Auction(Cog):
             ):
                 await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
-    @cog_ext.cog_subcommand(base="auction", name="stop")
+    @cog_ext.cog_subcommand(
+        base="auction", name="stop", description="Stop a running auction"
+    )
     @check_roles(Role.Officer)
     async def _auction_stop(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
@@ -807,7 +809,11 @@ class Auction(Cog):
         for message in self.auctioneer.accept(ctx.channel.name, force=force == "yes"):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
-    @cog_ext.cog_subcommand(base="auction", name="reopen")
+    @cog_ext.cog_subcommand(
+        base="auction",
+        name="reopen",
+        description="Reopen a stopped or finished auction for additional bids",
+    )
     @check_roles(Role.Officer)
     async def _auction_reopen(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
@@ -815,7 +821,9 @@ class Auction(Cog):
         for message in self.auctioneer.reopen(ctx.channel.name):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
-    @cog_ext.cog_subcommand(base="auction", name="delete")
+    @cog_ext.cog_subcommand(
+        base="auction", name="delete", description="Delete an auction"
+    )
     @check_roles(Role.Officer)
     async def _auction_delete(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
@@ -823,7 +831,13 @@ class Auction(Cog):
         for message in self.auctioneer.delete(ctx.channel.name):
             await smart_send(ctx, hidden=message.hidden, **message.as_kwargs())
 
-    @cog_ext.cog_subcommand(base="auction", name="restart")
+    @cog_ext.cog_subcommand(
+        base="auction",
+        name="restart",
+        description=(
+            "Restart an auction, invalidating all bids and starting from scratch"
+        ),
+    )
     @check_roles(Role.Officer)
     async def _auction_restart(self, ctx: SlashContext):
         await ctx.defer(hidden=True)
