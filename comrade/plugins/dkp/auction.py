@@ -267,6 +267,15 @@ def _bid_key(dkp: typing.Mapping[str, CharacterDKP], member_treshold: int):
     return key_fn
 
 
+def _filter_bids(bids: Iterable[Bid]) -> Iterable[Bid]:
+    seen = set()
+    for bid in bids:
+        key = (bid.bidder, bid.id)
+        if key not in seen:
+            seen.add(key)
+            yield bid
+
+
 def determine_results(
     auction: RunningAuction,
     dkp: typing.Mapping[str, CharacterDKP],
@@ -276,13 +285,14 @@ def determine_results(
     # This function *MUST NOT* modify the running auction, it should just
     # indicate what the results would be, if it ended right now (which, if the
     # auction has ended, that is the actual result).
-    # TODO: filter out all but a players highest bid.
     need = auction.item.quantity
     winners = []
     tied = []
     rolled = 0
 
-    all_bids = sorted(auction.bids, key=_bid_key(dkp, member_treshold), reverse=True)
+    all_bids = _filter_bids(
+        sorted(auction.bids, key=_bid_key(dkp, member_treshold), reverse=True)
+    )
     for _, b in itertools.groupby(all_bids, _bid_key(dkp, member_treshold)):
         bids = list(b)
 
