@@ -58,9 +58,18 @@ class AuctionRoles:
 
 
 @attr.s(slots=True, auto_attribs=True)
+class AuctionLimits:
+
+    valuable: int
+    member: int
+    maximum: int
+
+
+@attr.s(slots=True, auto_attribs=True)
 class Auction:
 
     roles: AuctionRoles
+    limits: AuctionLimits
     channels: list[str] = attr.ib(factory=list)
 
 

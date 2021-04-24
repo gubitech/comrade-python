@@ -209,17 +209,24 @@ class AuctionMessage:
             return {"content": self.message}
 
 
-def _bid_key(bid: Bid):
-    # Returns a tuple, this tuple is used to sort all of our bids, bids
-    # that are worse should compare lower to bids that are better.
-    #
-    # Current Rules:
-    #  1. Mains are higher priority than anyone else.
-    #  2. Smaller Bids are lower priority than higher bids.
-    return (bid.rank.value, bid.bid)
+def _bid_key(valuable_treshold):
+    def key_fn(bid: Bid):
+        # Returns a tuple, this tuple is used to sort all of our bids, bids
+        # that are worse should compare lower to bids that are better.
+        #
+        # Current Rules:
+        #  1. When a bid is >= valuable_threshold, Mains are higher priority than
+        #     anyone else.
+        #  2. When a bid is < valuable_threshold, everyone is of equal priority.
+        #  3. Smaller Bids are lower priority than higher bids.
+        return (bid.rank.value if bid.bid >= valuable_treshold else 0, bid.bid)
+
+    return key_fn
 
 
-def determine_results(auction: RunningAuction) -> AuctionResults:
+def determine_results(
+    auction: RunningAuction, *, valuable_treshold=0
+) -> AuctionResults:
     # This function *MUST NOT* modify the running auction, it should just
     # indicate what the results would be, if it ended right now (which, if the
     # auction has ended, that is the actual result).
@@ -231,8 +238,8 @@ def determine_results(auction: RunningAuction) -> AuctionResults:
     tied = []
     rolled = 0
 
-    all_bids = sorted(auction.bids, key=_bid_key, reverse=True)
-    for _, b in itertools.groupby(all_bids, _bid_key):
+    all_bids = sorted(auction.bids, key=_bid_key(valuable_treshold), reverse=True)
+    for _, b in itertools.groupby(all_bids, _bid_key(valuable_treshold)):
         bids = list(b)
 
         # If the number of people at this bid+current dkp doesn't exceed the
@@ -305,13 +312,14 @@ def check_auction_status(statuses):
 
 
 class Auctioneer:
-    def __init__(self, *args, channels, **kwargs):
+    def __init__(self, *args, channels, limits, **kwargs):
         super().__init__(*args, *kwargs)
 
         self._pending_items: list[AuctionItem] = []
         self._channels: dict[str, typing.Optional[RunningAuction]] = {
             channel: None for channel in channels
         }
+        self._limits = limits
 
     def add(self, item: AuctionItem) -> None:
         self._pending_items.append(item)
@@ -330,7 +338,9 @@ class Auctioneer:
             # to update, then immediately close.
             if not auction.time_left and auction.status is Status.Running:
                 auction.status = Status.Finished
-                auction.results = determine_results(auction)
+                auction.results = determine_results(
+                    auction, valuable_treshold=self._limits.valuable
+                )
                 yield AuctionMessage(
                     channel=channel,
                     message=f"Auction Closed. Results: {auction.results}",
@@ -340,7 +350,9 @@ class Auctioneer:
             # channel.
             if auction.needs_update:
                 auction.last_updated = datetime.datetime.utcnow()
-                results = determine_results(auction)
+                results = determine_results(
+                    auction, valuable_treshold=self._limits.valuable
+                )
                 yield AuctionMessage(
                     channel=channel,
                     message=(
@@ -412,7 +424,7 @@ class Auctioneer:
 
         # We're going to compute the results again, and see if they differ, if they
         # do, we're going to refuse to accept the auction without a -force flag.
-        results = determine_results(auction)
+        results = determine_results(auction, valuable_treshold=self._limits.valuable)
         if not force and auction.results != results:
             # TODO: Mention the ability to reopen + force accept the new results.
             yield AuctionMessage(
@@ -548,7 +560,10 @@ def check_roles(*roles: typing.Union[Role, str, int]):
 class Auction(Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.auctioneer = Auctioneer(channels=self.bot.config.auction.channels)
+        self.auctioneer = Auctioneer(
+            channels=self.bot.config.auction.channels,
+            limits=self.bot.config.auction.limits,
+        )
         self.server = None
         self._role_mappings = {}
         self._run_auction.start()
