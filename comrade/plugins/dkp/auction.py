@@ -304,6 +304,7 @@ def check_auction_status(statuses):
                         message=message,
                         hidden=True,
                     )
+                    return
             yield from fn(self, channel, *args, **kwargs)
 
         return wrapper
