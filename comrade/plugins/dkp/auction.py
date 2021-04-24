@@ -238,7 +238,9 @@ def validate_bid(
     elif bid_amount < minimum:
         return (False, f"Error: Invalid bid (bids below {minimum} are not allowed).")
     elif bidder_dkp.current == bid_amount:
-        return (True, "")
+        # We do nothing here, because this exists just so that we don't reject
+        # an "all in" bid because it doesn't match the "divisble by 5" rules.
+        pass
     elif bid_amount >= valuable_threshold and bid_amount % 5:
         return (
             False,
@@ -247,7 +249,10 @@ def validate_bid(
                 f"be in increments of 5)."
             ),
         )
-    elif bid_amount > bidder_dkp.current:
+
+    # Now that we've made sure the bid is a valid number, we'll make sure that the
+    # bidder has enough DKP to actually bid that amount.
+    if bid_amount > bidder_dkp.current:
         return (False, "Error: Invalid Bid (not enough dkp).")
     else:
         return (True, "")
