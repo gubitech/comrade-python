@@ -41,7 +41,6 @@ class DKPProvider:
 
         # The EQDKP data structure is kinda wonky and weird, we're going to massage
         # it into something that works better for us.
-        # TODO: We filter our inactive and hidden people, is that right?
         pool_name = f"multidkp_points:{self.config.dkp_pool_id}"
         return {
             p["name"].lower(): CharacterDKP(
